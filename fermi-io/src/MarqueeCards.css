@@ -1,0 +1,105 @@
+:root {
+  /* Tweak these variables to change your scrolling speed, gaps, or card sizes */
+  --marquee-speed: 25s;
+  --marquee-gap: 24px;
+  --card-width-desktop: 320px;
+  --card-width-tablet: 260px;
+  --card-width-mobile: 200px;
+}
+
+/* Outer frame masking bounds and handling side-edge gradients */
+.marquee-container {
+  overflow: hidden;
+  width: 100%;
+  display: flex;
+  position: relative;
+  padding: 24px 0;
+  margin: 32px 0;
+  
+  /* Blurs the cards seamlessly into the background as they hit the left/right walls */
+  mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 12%,
+    black 88%,
+    transparent 100%
+  );
+}
+
+/* The long unified row carrying all your assets */
+.marquee-track {
+  display: flex;
+  gap: var(--marquee-gap);
+  width: max-content;
+  animation: scrollInfinite var(--marquee-speed) linear infinite;
+  will-change: transform; /* Signals GPU computing for a buttery smooth experience */
+}
+
+/* Freezes the animation frame perfectly whenever a user mouses over the loop */
+.marquee-container:hover .marquee-track {
+  animation-play-state: paused;
+}
+
+.marquee-card-wrapper {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Native Aspect-Ratio Protection */
+.marquee-svg-card {
+  width: var(--card-width-desktop);
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  pointer-events: none; /* Disables drag silhouettes from breaking visual rhythm */
+}
+
+/* Tablet Layout Media Queries */
+@media (max-width: 992px) {
+  .marquee-svg-card {
+    width: var(--card-width-tablet);
+  }
+  :root { --marquee-gap: 16px; }
+}
+
+/* Mobile Layout Media Queries */
+@media (max-width: 576px) {
+  .marquee-svg-card {
+    width: var(--card-width-mobile);
+  }
+  :root { 
+    --marquee-gap: 12px;
+    --marquee-speed: 18s; /* Moves slightly faster on short paths */
+  }
+}
+
+/* Infinite Loop Engine */
+@keyframes scrollInfinite {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    /* Shifts exactly half the track width plus alignment offset then snaps back unnoticeably */
+    transform: translate3d(calc(-50% - (var(--marquee-gap) / 2)), 0, 0);
+  }
+}
+
+/* Gracefully halts animation for visitors who have operating system reduced motion preferences active */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+    overflow-x: auto;
+    width: 100%;
+  }
+  .marquee-container { mask-image: none; -webkit-mask-image: none; }
+}

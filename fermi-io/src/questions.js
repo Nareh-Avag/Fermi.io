@@ -40,11 +40,9 @@ export const QUESTIONS = [
   { id: 5, question: "How many apps are available on the Apple App Store?", unit: "million apps", answer: 1.8, difficulty: "medium", hint: "Millions, but fewer than you'd guess after de-duplication." },
   { id: 6, question: "How many commercial airline flights take off worldwide per day?", unit: "flights", answer: 100000, difficulty: "medium", hint: "Roughly 100k — decompose by major hubs." },
   { id: 7, question: "How many gallons of water does an Olympic pool hold?", unit: "gallons", answer: 660000, difficulty: "medium", hint: "50m x 25m x 2m, then convert." },
-  { id: 8, question: "How many heartbeats does an average human have in a lifetime?", unit: "beats", answer: 2.5e9, difficulty: "medium", hint: "~70 bpm over ~75 years." },
+  { id: 8, question: "How many heartbeats does an average human have in a lifetime?", unit: "beats", answer: 2500000000, difficulty: "medium", hint: "~70 bpm over ~75 years." },
 
   // ---------- HARD ----------
   { id: 9, question: "How many atoms are in a single grain of table salt?", unit: "atoms", answer: 1.2e18, difficulty: "hard", hint: "Grain mass ~0.06mg; use molar mass + Avogadro." },
-  { id: 10, question: "How many cups of tea are drunk in the UK each day?", unit: "million cups", answer: 100, difficulty: "hard", hint: "~67M people, a few cups each on average." },
-
-  // ---------------- ADD YOUR QUESTIONS BELOW ----------------
+  { id: 10, question: "How many cups of tea are drunk in the UK each day?", unit: "million cups", answer: 100, difficulty: "hard", hint: "~67M people, a few cups each on average." }
 ];

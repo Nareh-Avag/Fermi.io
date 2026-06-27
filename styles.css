@@ -115,7 +115,7 @@ body {
   flex-shrink: 0; 
 }
 .logo { 
-  height: 70px; 
+  height: 80px; 
   width: auto; 
   display: block; 
 }
@@ -124,9 +124,9 @@ body {
 .header-bar {
   flex: 1;
   /* CHANGED: Bumped up from 480px to 560px so it stretches further out to the left */
-  max-width: 560px; 
+  max-width: 580px; 
   /* CHANGED: Slightly taller to match the larger header scale */
-  min-height: 48px; 
+  min-height: 70px; 
   margin-left: 0; 
   
   padding: 6px 20px;

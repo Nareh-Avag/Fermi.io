@@ -11,21 +11,21 @@
  
 :root {
   /* ---- Core palette (HOOK: swap these for your brand) ---- */
-  --bg:            #0b0e14;   /* page background */
-  --bg-grad:       #11161f;   /* subtle top glow */
+  --bg:            #fff8e9;   /* page background */
+  --bg-grad:       #fff8e9;   /* subtle top glow */
   --surface:       #141a24;   /* cards */
   --surface-2:     #1b222e;   /* insets, inputs */
   --surface-3:     #232c3a;   /* hover / segmented */
   --border:        #283142;
   --border-soft:   #1e2632;
  
-  --text:          #eef2f8;
+  --text:          #4b4b4b;
   --text-muted:    #8b97ad;
   --text-faint:    #5d6878;
  
   /* Distinct accent — a confident teal/cyan, not orange. */
-  --accent:        #bcf5ca;
-  --accent-2:      #b1e9e2;
+  --accent:        #dcae65;
+  --accent-2:      #ffcb77;
   --accent-ink:    #930000;   /* text on accent */
  
   /* Semantic */

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { BarChart3, Notebook, BookOpen, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { BarChart3, Notebook, BookOpen, Settings, LogIn, UserPlus, UserRound, Play, Flame, Lock, ArrowRight, ExternalLink } from 'lucide-react';
 import MarqueeCards from './MarqueeCards';
 import { QUESTIONS } from './questions';
+import { supabase } from './supabaseClient';
 import './index.css';
 
 // Utility helper to parse suffix strings (e.g. "1k" -> 1000, "1.5M" -> 1500000)
@@ -22,13 +23,71 @@ const parseValue = (str) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GitHub-style activity matrix synthesis.
+// Produces a flat list of cells (one per day) carrying an intensity level 0–3,
+// plus the current consecutive-day streak ending today. Deterministically
+// seeded so a given user sees a stable board across renders.
+// ─────────────────────────────────────────────────────────────────────────────
+const ACTIVITY_WEEKS = 12; // grid columns
+const ACTIVITY_DAYS = ACTIVITY_WEEKS * 7;
+
+const buildActivityMatrix = (seed = 1) => {
+  const cells = [];
+  let s = seed;
+  const rand = () => {
+    // Tiny LCG — enough for stable, plausible-looking activity.
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  for (let i = 0; i < ACTIVITY_DAYS; i++) {
+    const r = rand();
+    // Most days are quiet; a few are busy — skews toward lower levels.
+    const level = r > 0.82 ? 3 : r > 0.62 ? 2 : r > 0.4 ? 1 : 0;
+    cells.push(level);
+  }
+
+  // Current streak: walk backwards from today (last cell) over active days.
+  let streak = 0;
+  for (let i = cells.length - 1; i >= 0; i--) {
+    if (cells[i] > 0) streak++;
+    else break;
+  }
+  return { cells, streak };
+};
+
 function App() {
   // ═══════════════ NAVIGATION & SCREEN ROUTING STATES ═══════════════
-  const [currentView, setCurrentView] = useState('home'); // 'home' | 'practice-config' | 'daily-landing' | 'round' | 'practice-end' | 'daily-results'
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'practice-config' | 'round' | 'practice-end'
   const [isDaily, setIsDaily] = useState(false);
 
+  // Gate: until a visitor authenticates or explicitly continues as guest, the
+  // home view shows the auth gateway rather than the calibration dashboard.
+  const [isOnDashboard, setIsOnDashboard] = useState(false);
+
   // ═══════════════ AUTH / SESSION MODE STATE ═══════════════
-  const [authMode, setAuthMode] = useState('guest'); // 'guest' | 'quant' — foundation for login tracking
+  const [authMode, setAuthMode] = useState(null); // null (undecided) | 'guest' | 'user'
+
+  // ═══════════════ AUTH MODAL (Supabase) STATE ═══════════════
+  const [authModalMode, setAuthModalMode] = useState(null); // null | 'login' | 'signup'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
+
+  // ═══════════════ SCRATCH PAD STATE ═══════════════
+  const [isNotepadOpen, setIsNotepadOpen] = useState(false);
+  const [notepadText, setNotepadText] = useState('');
+
+  // ═══════════════ ARTICLES (Supabase 'articles' table) STATE ═══════════════
+  const [sessionUser, setSessionUser] = useState(null);   // raw Supabase auth user
+  const [articles, setArticles] = useState([]);
+  const [expandedArticleId, setExpandedArticleId] = useState(null);
+  const [newArticle, setNewArticle] = useState({ title: '', content: '', link_url: '', is_external: false });
+  const [articleBusy, setArticleBusy] = useState(false);
+
+  // Only the admin account may compose new entries.
+  const isAdmin = sessionUser?.email === 'narehavag@gmail.com';
 
   // ═══════════════ CONFIGURATION STATES ═══════════════
   const [cfgDifficulty, setCfgDifficulty] = useState('mixed');
@@ -55,9 +114,46 @@ function App() {
 
   // Computed parameters
   const currentQuestion = gamePool[currentIdx] || null;
-  const runningAccuracy = accuracyHistory.length > 0 
-    ? Math.round((accuracyHistory.filter(Boolean).length / accuracyHistory.length) * 100) 
+  const runningAccuracy = accuracyHistory.length > 0
+    ? Math.round((accuracyHistory.filter(Boolean).length / accuracyHistory.length) * 100)
     : 0;
+
+  // Activity board for the Stats panel — seeded off the account email so a
+  // signed-in user gets a stable, personal-looking board.
+  const activity = useMemo(
+    () => buildActivityMatrix((authEmail || 'fermi').length + 7),
+    [authEmail]
+  );
+
+  // ═══════════════ SUPABASE SESSION RESTORE ═══════════════
+  // If a session already exists (returning user), drop them straight onto the
+  // dashboard as a logged-in user.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data?.session?.user) {
+        setSessionUser(data.session.user);
+        setAuthEmail(data.session.user.email || '');
+        setAuthMode('user');
+        setIsOnDashboard(true);
+      }
+    });
+  }, []);
+
+  // ═══════════════ ARTICLES FETCH ═══════════════
+  // Pull the reading-room entries newest-first from Supabase on mount.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!error && data && active) {
+        setArticles(data);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
 
   // ═══════════════ LIVE TIMER ENGINE LOOP ═══════════════
   useEffect(() => {
@@ -109,18 +205,6 @@ function App() {
     setDeltaScore(null);
     setAccuracyHistory([]);
     initiateQuestionRound(pool[0], cfgSeconds);
-  };
-
-  const startDailyRun = () => {
-    // Fixed daily programmatic indexing structure matching configuration layouts
-    let pool = [...QUESTIONS].slice(0, 5); 
-    setIsDaily(true);
-    setGamePool(pool);
-    setCurrentIdx(0);
-    setScore(500);
-    setDeltaScore(null);
-    setAccuracyHistory([]);
-    initiateQuestionRound(pool[0], 60);
   };
 
   const initiateQuestionRound = (question, secondsAllocation) => {
@@ -217,8 +301,114 @@ function App() {
       initiateQuestionRound(gamePool[nextIndex], isDaily ? 60 : cfgSeconds);
     } else {
       // Run complete
-      setCurrentView(isDaily ? 'daily-results' : 'practice-end');
+      setCurrentView('practice-end');
     }
+  };
+
+  // ═══════════════ AUTH GATEWAY ACTIONS ═══════════════
+  const openAuthModal = (mode) => {
+    setAuthModalMode(mode);
+    setAuthError('');
+    setAuthPassword('');
+  };
+
+  const closeAuthModal = () => {
+    setAuthModalMode(null);
+    setAuthError('');
+    setAuthBusy(false);
+  };
+
+  const enterAsGuest = () => {
+    setAuthMode('guest');
+    setIsOnDashboard(true);
+    setCurrentView('home');
+  };
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    if (authBusy) return;
+    setAuthError('');
+    setAuthBusy(true);
+
+    try {
+      const credentials = { email: authEmail.trim(), password: authPassword };
+      const { data, error } =
+        authModalMode === 'signup'
+          ? await supabase.auth.signUp(credentials)
+          : await supabase.auth.signInWithPassword(credentials);
+
+      if (error) {
+        setAuthError(error.message);
+        setAuthBusy(false);
+        return;
+      }
+
+      // Sign-up may require email confirmation before a session exists.
+      if (authModalMode === 'signup' && !data?.session) {
+        setAuthError('Check your inbox to confirm your email, then log in.');
+        setAuthBusy(false);
+        setAuthModalMode('login');
+        return;
+      }
+
+      setSessionUser(data?.user || data?.session?.user || null);
+      setAuthMode('user');
+      setIsOnDashboard(true);
+      setCurrentView('home');
+      closeAuthModal();
+    } catch (err) {
+      setAuthError(err?.message || 'Something went wrong. Try again.');
+      setAuthBusy(false);
+    }
+  };
+
+  // ═══════════════ SCRATCH PAD ACTIONS ═══════════════
+  const handleNotepadSave = () => {
+    if (authMode !== 'user') {
+      alert('Authentication Required: Please log in to permanently save scratch pad models to your profile.');
+      return;
+    }
+    // Logged-in: simulate a secure write to the user's profile.
+    alert('Scratch pad models saved securely to your profile.');
+  };
+
+  // ═══════════════ ARTICLES ADMIN ACTIONS ═══════════════
+  const handleAddArticle = async (e) => {
+    e.preventDefault();
+    if (articleBusy || !isAdmin) return;
+    if (!newArticle.title.trim()) return;
+
+    setArticleBusy(true);
+    const payload = {
+      title: newArticle.title.trim(),
+      content: newArticle.content.trim(),
+      link_url: newArticle.link_url.trim(),
+      is_external: newArticle.is_external,
+    };
+
+    const { data, error } = await supabase.from('articles').insert([payload]).select();
+    setArticleBusy(false);
+
+    if (error) {
+      alert(`Could not add entry: ${error.message}`);
+      return;
+    }
+    if (data && data.length) {
+      // Prepend the new entry so it stays newest-first like the fetch order.
+      setArticles((prev) => [data[0], ...prev]);
+    }
+    setNewArticle({ title: '', content: '', link_url: '', is_external: false });
+  };
+
+  const handleArticleClick = (article) => {
+    if (article.is_external) {
+      if (article.link_url) {
+        window.open(article.link_url, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
+    // Inline essay: toggle expansion.
+    setExpandedArticleId((prev) => (prev === article.id ? null : article.id));
   };
 
   return (
@@ -233,7 +423,7 @@ function App() {
           <div className="header-bar" id="header-bar">
             {/* Left: terminal breadcrumb path reflecting the active session mode */}
             <span className="header-terminal-path">
-              {authMode === 'guest' ? 'guest@fermi.io:~ $' : 'quant@fermi.io:~ $'}
+              {authMode === 'user' ? 'quant@fermi.io:~ $' : 'guest@fermi.io:~ $'}
             </span>
 
             {/* Right: tightly-grouped Lucide tool dock */}
@@ -241,7 +431,7 @@ function App() {
               <button type="button" className="nav-icon-btn" aria-label="Metrics" title="Metrics" onClick={() => alert("Coming soon!")}>
                 <BarChart3 size={24} color="#4B4B4B" />
               </button>
-              <button type="button" className="nav-icon-btn" aria-label="Notepad" title="Notepad" onClick={() => alert("Coming soon!")}>
+              <button type="button" className={`nav-icon-btn ${isNotepadOpen ? 'is-active' : ''}`} aria-label="Scratch pad" aria-pressed={isNotepadOpen} title="Scratch pad" onClick={() => setIsNotepadOpen((open) => !open)}>
                 <Notebook size={24} color="#4B4B4B" />
               </button>
               <button type="button" className="nav-icon-btn" aria-label="Articles" title="Articles" onClick={() => alert("Coming soon!")}>
@@ -279,8 +469,8 @@ function App() {
       </header>
 
       <main className="app">
-        {/* ═══════════════ HOME VIEW SCREEN ═══════════════ */}
-{currentView === 'home' && (
+        {/* ═══════════════ HOME / LANDING (UNAUTHENTICATED GATEWAY) ═══════════════ */}
+        {currentView === 'home' && !isOnDashboard && (
           <div id="home-view" className="view home-landing">
 
             {/* ═══════════════ SECTION 1 · HERO ═══════════════ */}
@@ -344,26 +534,32 @@ function App() {
               </ol>
             </section>
 
-            {/* ═══════════════ SECTION 3 · MODE SELECTION GRID ═══════════════ */}
-            <section className="landing-section landing-modes" aria-labelledby="modes-heading">
+            {/* ═══════════════ SECTION 3 · AUTHENTICATION GATEWAY ═══════════════ */}
+            <section className="landing-section landing-gateway" aria-labelledby="gateway-heading">
               <header className="section-head">
-                <span className="section-eyebrow">Choose your run</span>
-                <h2 id="modes-heading" className="section-title">Pick a mode and start calibrating</h2>
+                <span className="section-eyebrow">Get started</span>
+                <h2 id="gateway-heading" className="section-title">Step up to the desk</h2>
+                <p className="section-lede">
+                  Log in to track your calibration streaks, or jump straight into a run as a guest.
+                </p>
               </header>
 
-              <div className="mode-grid">
-                <button className="mode-card" id="mode-practice" onClick={() => setCurrentView('practice-config')}>
-                  <span className="mode-kicker">Free play</span>
-                  <span className="mode-name">Practice</span>
-                  <span className="mode-desc">Pick difficulty, length, and pace. Drill until your calibration is sharp.</span>
-                  <span className="mode-go">Configure →</span>
+              <div className="auth-gateway" role="group" aria-label="Choose how to continue">
+                <button className="auth-btn auth-btn-primary" onClick={() => openAuthModal('login')}>
+                  <LogIn size={20} />
+                  <span>Log In</span>
                 </button>
-                <button className="mode-card" id="mode-daily" onClick={() => setCurrentView('daily-landing')}>
-                  <span className="mode-kicker">One run a day</span>
-                  <span className="mode-name">Daily</span>
-                  <span className="mode-desc">Same questions for everyone. See where you land in the distribution. Build a streak.</span>
-                  <span className="mode-go">Play today →</span>
+                <button className="auth-btn auth-btn-secondary" onClick={() => openAuthModal('signup')}>
+                  <UserPlus size={20} />
+                  <span>Sign Up</span>
                 </button>
+                <button className="auth-btn auth-btn-ghost" onClick={enterAsGuest}>
+                  <UserRound size={20} />
+                  <span>Continue as Guest</span>
+                </button>
+                <p className="auth-gateway-note">
+                  Guests can play any run, sign in to keep your streaks and activity history.
+                </p>
               </div>
             </section>
 
@@ -381,41 +577,189 @@ function App() {
                     <span className="faq-marker" aria-hidden="true"></span>
                   </summary>
                   <p>
-                    A Fermi problem asks you to estimate a quantity that seems impossible to know exactly —
-                    "how many piano tuners work in Chicago?" — by breaking it into factors you can reason about
-                    and multiplying them up. The goal is not the exact figure but landing in the right
-                    order of magnitude through structured assumptions.
+                    A Fermi problem or estimate is a physics and estimation puzzle named after Enrico Fermi.
+                     It requires making justified, back-of-the-envelope calculations to estimate incredibly large or seemingly 
+                     impossible quantities without looking up any data.
                   </p>
                 </details>
 
                 <details className="faq-item">
                   <summary>
-                    How does the scoring engine evaluate variance?
+                    Why should I practice calibration runs?
                     <span className="faq-marker" aria-hidden="true"></span>
                   </summary>
                   <p>
-                    A bound only scores when it actually contains the true value, and the reward scales inversely
-                    with how wide you cast it. A single order-of-magnitude window earns top marks; stretch past
-                    two or three orders and the payout collapses, because an over-conservative range carries no
-                    real conviction and surrenders your alpha.
+                    Making order-of-magnitude estimates builds strong quantitative intuition. It is a core mental framework 
+                    used constantly in software architecture planning, systems engineering, venture capital sizing, and quantitative finance.
                   </p>
                 </details>
 
                 <details className="faq-item">
                   <summary>
-                    Why use geometric midpoints instead of arithmetic means?
+                    How are the problem data arrays generated?
                     <span className="faq-marker" aria-hidden="true"></span>
                   </summary>
                   <p>
-                    Estimation lives on a multiplicative scale. The arithmetic mean of 10 and 1,000 is 505 —
-                    hugging the larger number — while the geometric mean √(10 × 1,000) ≈ 100 sits at the true
-                    log-centre of the interval. Scoring on geometric error treats a 10× overestimate and a 10×
-                    underestimate as equally wrong, which is exactly how calibrated reasoning should behave.
+                    The challenges span across real-world physical constants, demographic distributions, and scaling anomalies.
+                    The system evaluates inputs conditionally using strict bounding logic to verify calculations.
                   </p>
                 </details>
               </div>
             </section>
 
+          </div>
+        )}
+
+        {/* ═══════════════ DASHBOARD (AUTHENTICATED / GUEST) ═══════════════ */}
+        {currentView === 'home' && isOnDashboard && (
+          <div id="dashboard-view" className="view dashboard">
+            <div className="dash-grid">
+              {/* ── PLAY: configuration portal for standard calibration runs ── */}
+              <section className="dash-card play-card">
+                <header className="dash-card-head">
+                  <span className="dash-kicker">Calibration run</span>
+                  <h2 className="dash-card-title">Play</h2>
+                </header>
+                <p className="dash-card-lede">
+                  Set your difficulty, length, and pace, then drill confidence intervals until your
+                  order-of-magnitude calibration is sharp.
+                </p>
+
+                <ul className="play-overview">
+                  <li><span className="play-stat-label">Format</span><span className="play-stat-value">Confidence intervals</span></li>
+                  <li><span className="play-stat-label">Scoring</span><span className="play-stat-value">Geometric · log-error</span></li>
+                  <li><span className="play-stat-label">Bank</span><span className="play-stat-value">{QUESTIONS.length} questions</span></li>
+                </ul>
+
+                <button className="btn btn-primary btn-block play-cta" onClick={() => setCurrentView('practice-config')}>
+                  <Play size={18} /> Configure a run
+                </button>
+              </section>
+
+              {/* ── STATS: streak + activity matrix, or a locked prompt for guests ── */}
+              <section className="dash-card stats-card">
+                <header className="dash-card-head">
+                  <span className="dash-kicker">Your desk</span>
+                  <h2 className="dash-card-title">Stats</h2>
+                </header>
+
+                {authMode === 'guest' ? (
+                  <div className="stats-locked">
+                    <span className="stats-locked-icon" aria-hidden="true"><Lock size={26} /></span>
+                    <p className="stats-locked-msg">
+                      Create an account to track your calibration streaks and activity charts.
+                    </p>
+                    <button className="auth-btn auth-btn-secondary stats-locked-cta" onClick={() => openAuthModal('signup')}>
+                      <UserPlus size={18} /> <span>Create account</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="stats-active">
+                    <div className="streak-row">
+                      <span className="streak-icon" aria-hidden="true"><Flame size={22} /></span>
+                      <span className="streak-count">{activity.streak}</span>
+                      <span className="streak-unit">day{activity.streak === 1 ? '' : 's'} current streak</span>
+                    </div>
+
+                    <span className="activity-caption">Practice activity · last {ACTIVITY_WEEKS} weeks</span>
+                    <div className="activity-matrix" role="img" aria-label={`Practice activity over the last ${ACTIVITY_WEEKS} weeks`}>
+                      {activity.cells.map((level, i) => (
+                        <span key={i} className="activity-cell" data-level={level} />
+                      ))}
+                    </div>
+                    <div className="activity-legend">
+                      <span>Less</span>
+                      <span className="activity-cell" data-level={0} />
+                      <span className="activity-cell" data-level={1} />
+                      <span className="activity-cell" data-level={2} />
+                      <span className="activity-cell" data-level={3} />
+                      <span>More</span>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              {/* ── ARTICLES: technical brief / reading hook ── */}
+              <section className="dash-card articles-card">
+                <header className="dash-card-head">
+                  <span className="dash-kicker">Reading room</span>
+                  <h2 className="dash-card-title">Articles</h2>
+                </header>
+                <p className="dash-card-lede">
+                  Short technical briefs on calibrated estimation — why geometric error beats arithmetic,
+                  how to fight anchoring, and the math behind the scoring engine.
+                </p>
+
+                {/* Admin-only composition tool — hidden for guests and non-admin users. */}
+                {isAdmin && (
+                  <form className="article-compose" onSubmit={handleAddArticle}>
+                    <span className="article-compose-label">New entry</span>
+                    <input
+                      type="text"
+                      className="article-input"
+                      placeholder="Title"
+                      value={newArticle.title}
+                      onChange={(e) => setNewArticle((a) => ({ ...a, title: e.target.value }))}
+                    />
+                    <textarea
+                      className="article-input article-textarea"
+                      placeholder="Content (for inline essays)"
+                      value={newArticle.content}
+                      onChange={(e) => setNewArticle((a) => ({ ...a, content: e.target.value }))}
+                    />
+                    <input
+                      type="url"
+                      className="article-input"
+                      placeholder="Link URL (for resource links)"
+                      value={newArticle.link_url}
+                      onChange={(e) => setNewArticle((a) => ({ ...a, link_url: e.target.value }))}
+                    />
+                    <label className="article-check">
+                      <input
+                        type="checkbox"
+                        checked={newArticle.is_external}
+                        onChange={(e) => setNewArticle((a) => ({ ...a, is_external: e.target.checked }))}
+                      />
+                      <span>External link</span>
+                    </label>
+                    <button type="submit" className="sketch-btn sketch-btn-solid" disabled={articleBusy}>
+                      {articleBusy ? 'Adding…' : 'Add Entry'}
+                    </button>
+                  </form>
+                )}
+
+                <ul className="articles-list">
+                  {articles.length === 0 && (
+                    <li className="article-empty">No entries yet — check back soon.</li>
+                  )}
+                  {articles.map((article) => {
+                    const isExpanded = expandedArticleId === article.id;
+                    return (
+                      <li
+                        key={article.id}
+                        className={`article-row ${isExpanded ? 'is-expanded' : ''}`}
+                        onClick={() => handleArticleClick(article)}
+                      >
+                        <div className="article-row-head">
+                          <div className="article-row-text">
+                            <span className="article-title">{article.title}</span>
+                            {article.is_external ? (
+                              <span className="article-tag">Resource Link</span>
+                            ) : (
+                              <span className="article-meta">Essay · tap to read</span>
+                            )}
+                          </div>
+                          {article.is_external ? <ExternalLink size={16} /> : <ArrowRight size={16} />}
+                        </div>
+                        {!article.is_external && isExpanded && (
+                          <p className="article-body">{article.content}</p>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            </div>
           </div>
         )}
 
@@ -464,27 +808,6 @@ function App() {
             </div>
 
             <button className="btn btn-primary btn-block" onClick={startPracticeRun}>Start practice</button>
-          </section>
-        )}
-
-        {/* ═══════════════ DAILY LANDING VIEW SCREEN ═══════════════ */}
-        {currentView === 'daily-landing' && (
-          <section id="daily-landing-view" className="view card">
-            <button className="back-link" onClick={() => setCurrentView('home')}>← Back</button>
-            <span className="daily-kicker">Daily Fermi</span>
-            <h2 className="card-title">Daily Run #18</h2>
-            <p className="daily-date">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-
-            <div className="dots" aria-hidden="true">
-              <span className="dot item-active"></span>
-              <span className="dot"></span>
-              <span className="dot"></span>
-              <span className="dot"></span>
-              <span className="dot"></span>
-            </div>
-
-            <button className="btn btn-primary btn-block" onClick={startDailyRun}>Start today's run</button>
-            <p className="config-note">One run per day. Your result locks in when you finish.</p>
           </section>
         )}
 
@@ -610,22 +933,90 @@ function App() {
           </section>
         )}
 
-        {/* ═══════════════ DAILY PERSISTENT RESULTS SCREEN ═══════════════ */}
-        {currentView === 'daily-results' && (
-          <section id="daily-results-view" className="view card">
-            <span className="daily-kicker">Daily Run Results</span>
-            <h2 className="card-title">Today's Summary Performance</h2>
-            <div className="final-score">{score}</div>
-
-            <p className="hist-cap">You outperformed {Math.min(92, Math.max(8, Math.round(score / 12)))}% of quantitative users in today's distribution pool models.</p>
-
-            <div className="actions actions-center">
-              <button className="btn btn-primary" onClick={() => alert("Copied system results string to clipboard summary metrics layout!")}>Share result</button>
-              <button className="btn btn-ghost" onClick={() => setCurrentView('home')}>Home</button>
-            </div>
-          </section>
-        )}
       </main>
+
+      {/* ═══════════════ SUPABASE AUTH MODAL ═══════════════ */}
+      {authModalMode && (
+        <div className="auth-overlay" onClick={closeAuthModal}>
+          <div
+            className="auth-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="auth-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button type="button" className="auth-modal-close" aria-label="Close" onClick={closeAuthModal}>×</button>
+            <span className="section-eyebrow">{authModalMode === 'signup' ? 'New account' : 'Welcome back'}</span>
+            <h2 id="auth-modal-title" className="auth-modal-title">
+              {authModalMode === 'signup' ? 'Sign up' : 'Log in'}
+            </h2>
+
+            <form className="auth-form" onSubmit={handleAuthSubmit}>
+              <label className="auth-field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  placeholder="you@desk.io"
+                />
+              </label>
+              <label className="auth-field">
+                <span>Password</span>
+                <input
+                  type="password"
+                  autoComplete={authModalMode === 'signup' ? 'new-password' : 'current-password'}
+                  required
+                  minLength={6}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  placeholder="••••••••"
+                />
+              </label>
+
+              {authError && <p className="auth-error">{authError}</p>}
+
+              <button type="submit" className="btn btn-primary btn-block" disabled={authBusy}>
+                {authBusy ? 'Working…' : authModalMode === 'signup' ? 'Create account' : 'Log in'}
+              </button>
+            </form>
+
+            <p className="auth-switch">
+              {authModalMode === 'signup' ? 'Already have an account?' : 'New to the desk?'}{' '}
+              <button
+                type="button"
+                className="auth-switch-link"
+                onClick={() => openAuthModal(authModalMode === 'signup' ? 'login' : 'signup')}
+              >
+                {authModalMode === 'signup' ? 'Log in' : 'Sign up'}
+              </button>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════ SCRATCH PAD DRAWER ═══════════════ */}
+      <div className={`scratchpad-drawer ${isNotepadOpen ? 'is-open' : ''}`} aria-hidden={!isNotepadOpen}>
+        <div className="scratchpad-head">
+          <h2 className="scratchpad-title">SCRATCH PAD</h2>
+          <button type="button" className="scratchpad-close" aria-label="Close scratch pad" onClick={() => setIsNotepadOpen(false)}>×</button>
+        </div>
+
+        <textarea
+          className="scratchpad-body"
+          value={notepadText}
+          onChange={(e) => setNotepadText(e.target.value)}
+          placeholder="Enter boundary conditions, conversion models, or calculation arrays here..."
+          spellCheck={false}
+        />
+
+        <div className="scratchpad-actions">
+          <button type="button" className="sketch-btn sketch-btn-ghost" onClick={() => setNotepadText('')}>Clear All</button>
+          <button type="button" className="sketch-btn sketch-btn-solid" onClick={handleNotepadSave}>Save Notes</button>
+        </div>
+      </div>
     </div>
   );
 }

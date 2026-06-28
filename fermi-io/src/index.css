@@ -10,6 +10,14 @@
    e.g.  @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap"); */
  
 :root {
+  /* ════════════════════════════════════════════════════════════════════
+     CORE BRAND PALETTE — the landing page relies entirely on these four.
+     ════════════════════════════════════════════════════════════════════ */
+  --primary-accent: #FFCB77;  /* Warm Yellow  */
+  --bg-main:        #FFF8E9;  /* Soft Cream Background */
+  --accent-coral:   #FE6D73;  /* Coral Red Accent */
+  --brand-blue:     #2584A7;  /* Quant Blue Accent */
+
   /* ---- Core palette (HOOK: swap these for your brand) ---- */
   --bg:            #fff8e9;   /* page background */
   --bg-grad:       #fff8e9;   /* subtle top glow */
@@ -135,7 +143,7 @@ body {
   
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;   /* terminal path on the left, tool dock on the right */
   gap: 16px;
 }
 
@@ -214,7 +222,7 @@ body {
   letter-spacing: -0.025em;
   margin: 0 0 14px;
 }
-.hero-title .accent { color: var(--accent); }
+.hero-title .accent { color: var(--accent-coral); }
 .hero-sub {
   max-width: 46ch;
   margin: 0 auto;
@@ -233,22 +241,195 @@ body {
   align-items: flex-start;
   gap: 7px;
   text-align: left;
-  padding: 22px;
+  padding: 26px 24px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--brand-blue) 22%, transparent);
+  background: var(--bg-main);
   color: var(--text);
   cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
-.mode-card:hover { transform: translateY(-3px); border-color: var(--accent); background: var(--surface-2); }
+/* Top hairline that lights up on interaction */
+.mode-card::before {
+  content: "";
+  position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--primary-accent);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.22s ease;
+}
+.mode-card:hover,
+.mode-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: var(--primary-accent);
+  box-shadow: 0 22px 48px -26px rgba(37, 132, 167, 0.55);
+  outline: none;
+}
+.mode-card:hover::before,
+.mode-card:focus-visible::before { transform: scaleX(1); }
+.mode-card:hover .mode-go,
+.mode-card:focus-visible .mode-go { color: var(--accent-coral); }
 .mode-kicker {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--accent); font-weight: 700;
+  color: var(--accent-coral); font-weight: 800;
 }
-.mode-name { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
-.mode-desc { color: var(--text-muted); font-size: 13px; flex: 1; }
-.mode-go { margin-top: 6px; color: var(--text); font-weight: 600; font-size: 14px; }
+.mode-name { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--brand-blue); }
+.mode-desc { color: var(--text); font-size: 13px; flex: 1; opacity: 0.85; }
+.mode-go { margin-top: 6px; color: var(--brand-blue); font-weight: 700; font-size: 14px; transition: color 0.16s ease; }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PREMIUM VERTICAL LANDING PAGE
+   A multi-section scrolling home view built entirely on the core palette:
+   cream canvas (--bg-main), warm-yellow highlights (--primary-accent),
+   coral interactive accents (--accent-coral) and quant-blue headings
+   (--brand-blue). The site-wide grid lines remain visible behind it.
+   ═══════════════════════════════════════════════════════════════════════ */
+.home-landing {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(56px, 11vw, 110px);
+  padding-bottom: clamp(24px, 6vw, 56px);
+}
+.landing-section { scroll-margin-top: 110px; }
+
+/* ── Shared section scaffolding ── */
+.section-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 800;
+  color: var(--accent-coral);
+  margin-bottom: 12px;
+}
+.section-head {
+  text-align: center;
+  max-width: 54ch;
+  margin: 0 auto clamp(28px, 5vw, 42px);
+}
+.section-title {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4.6vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--brand-blue);
+  margin: 0 0 12px;
+}
+.section-lede {
+  color: var(--text);
+  opacity: 0.9;
+  font-size: clamp(14px, 2.1vw, 16px);
+  margin: 0;
+}
+
+/* ── Section 1 · Hero ── */
+.landing-hero { text-align: center; }
+.landing-hero .hero { margin: clamp(8px, 4vw, 28px) 0 26px; }
+.landing-hero .section-eyebrow { color: var(--brand-blue); }
+
+/* ── Section 2 · Methodology (multi-step grid) ── */
+.methodology-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+.method-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px 26px;
+  background: var(--bg-main);
+  border: 1px solid color-mix(in srgb, var(--brand-blue) 20%, transparent);
+  border-radius: var(--radius);
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.method-step:hover {
+  transform: translateY(-3px);
+  border-color: var(--primary-accent);
+  box-shadow: 0 20px 44px -28px rgba(37, 132, 167, 0.55);
+}
+.step-index {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px; height: 48px;
+  border-radius: 14px;
+  background: var(--primary-accent);
+  color: color-mix(in srgb, var(--brand-blue) 60%, #000);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 17px;
+}
+.method-step article { flex: 1; }
+.step-title {
+  font-family: var(--font-display);
+  font-size: clamp(16px, 2.6vw, 19px);
+  font-weight: 700;
+  color: var(--brand-blue);
+  margin: 2px 0 7px;
+}
+.step-body {
+  color: var(--text);
+  opacity: 0.9;
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* ── Section 4 · FAQ accordion ── */
+.faq-list { display: grid; gap: 12px; }
+.faq-item {
+  background: var(--bg-main);
+  border: 1px solid color-mix(in srgb, var(--brand-blue) 18%, transparent);
+  border-radius: var(--radius-sm);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.faq-item[open] {
+  border-color: var(--primary-accent);
+  box-shadow: 0 16px 38px -28px rgba(37, 132, 167, 0.5);
+}
+.faq-item summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(15px, 2.3vw, 17px);
+  color: var(--brand-blue);
+  transition: color 0.16s ease;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary:hover { color: var(--accent-coral); }
+/* Animated +/− marker drawn from the palette */
+.faq-marker { flex: none; position: relative; width: 18px; height: 18px; }
+.faq-marker::before,
+.faq-marker::after {
+  content: "";
+  position: absolute;
+  background: var(--accent-coral);
+  border-radius: 2px;
+  transition: transform 0.22s ease;
+}
+.faq-marker::before { top: 8px; left: 0; width: 18px; height: 2px; }
+.faq-marker::after  { left: 8px; top: 0; width: 2px; height: 18px; }
+.faq-item[open] .faq-marker::after { transform: scaleY(0); }
+.faq-item p {
+  margin: 0;
+  padding: 0 20px 20px;
+  color: var(--text);
+  opacity: 0.9;
+  font-size: 14px;
+  line-height: 1.65;
+}
  
 /* ═══════════════ CONFIG / SEGMENTED ═══════════════ */
 .config-group { margin-bottom: 22px; }
@@ -562,7 +743,65 @@ input[type="range"]::-moz-range-thumb {
 .share-toast { text-align: center; color: var(--accent); font-size: 13px; font-weight: 600; margin-top: 10px; }
  
 [hidden] { display: none !important; }
- 
+
+/* ═══════════════ HEADER TERMINAL DOCK (lucide icons) ═══════════════ */
+
+/* Left side: terminal breadcrumb path */
+.header-terminal-path {
+  font-family: "Fira Code", "SFMono-Regular", ui-monospace, "Courier New", monospace;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  color: #8a8a8a;            /* muted grey, matches the cream aesthetic */
+  white-space: nowrap;
+  user-select: none;
+}
+
+/* Right side: tightly-grouped tool dock */
+.header-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* Faint tactical divider lines between buttons (not after the last) */
+.header-tools-group .nav-icon-btn:not(:last-child) {
+  border-right: 1px solid rgba(75, 75, 75, 0.15);
+  padding-right: 14px;
+}
+
+.nav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+/* Strip every default browser chrome across all interaction states.
+   (The tactical divider above is a deliberate border-right and keeps its
+   higher specificity, so it survives this reset.) */
+.nav-icon-btn,
+.nav-icon-btn:hover,
+.nav-icon-btn:focus,
+.nav-icon-btn:active,
+.nav-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+/* Clean, professional hover */
+.nav-icon-btn:hover {
+  transform: scale(1.05);
+  opacity: 0.7;
+}
+/* Lock the icon SVGs to a crisp, uniform 24px box */
+.nav-icon-btn svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
 /* ═══════════════ RESPONSIVE ═══════════════ */
 @media (max-width: 480px) {
   .mode-grid { grid-template-columns: 1fr; }

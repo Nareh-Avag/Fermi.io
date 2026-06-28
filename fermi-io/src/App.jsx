@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { BarChart3, Notebook, BookOpen, Settings } from 'lucide-react';
 import MarqueeCards from './MarqueeCards';
 import { QUESTIONS } from './questions';
 import './index.css';
@@ -25,6 +26,9 @@ function App() {
   // ═══════════════ NAVIGATION & SCREEN ROUTING STATES ═══════════════
   const [currentView, setCurrentView] = useState('home'); // 'home' | 'practice-config' | 'daily-landing' | 'round' | 'practice-end' | 'daily-results'
   const [isDaily, setIsDaily] = useState(false);
+
+  // ═══════════════ AUTH / SESSION MODE STATE ═══════════════
+  const [authMode, setAuthMode] = useState('guest'); // 'guest' | 'quant' — foundation for login tracking
 
   // ═══════════════ CONFIGURATION STATES ═══════════════
   const [cfgDifficulty, setCfgDifficulty] = useState('mixed');
@@ -226,7 +230,28 @@ function App() {
             <img className="logo" src="src/assets/logo-asset.svg" alt="Fermi" />
           </a>
           
-          <div className="header-bar" id="header-bar"></div>
+          <div className="header-bar" id="header-bar">
+            {/* Left: terminal breadcrumb path reflecting the active session mode */}
+            <span className="header-terminal-path">
+              {authMode === 'guest' ? 'guest@fermi.io:~ $' : 'quant@fermi.io:~ $'}
+            </span>
+
+            {/* Right: tightly-grouped Lucide tool dock */}
+            <nav className="header-tools-group" aria-label="Tools">
+              <button type="button" className="nav-icon-btn" aria-label="Metrics" title="Metrics" onClick={() => alert("Coming soon!")}>
+                <BarChart3 size={24} color="#4B4B4B" />
+              </button>
+              <button type="button" className="nav-icon-btn" aria-label="Notepad" title="Notepad" onClick={() => alert("Coming soon!")}>
+                <Notebook size={24} color="#4B4B4B" />
+              </button>
+              <button type="button" className="nav-icon-btn" aria-label="Articles" title="Articles" onClick={() => alert("Coming soon!")}>
+                <BookOpen size={24} color="#4B4B4B" />
+              </button>
+              <button type="button" className="nav-icon-btn" aria-label="Settings" title="Settings" onClick={() => alert("Coming soon!")}>
+                <Settings size={24} color="#4B4B4B" />
+              </button>
+            </nav>
+          </div>
 
           {/* Dynamic HUD Module elements visibility condition */}
           {currentView === 'round' && (
@@ -256,34 +281,142 @@ function App() {
       <main className="app">
         {/* ═══════════════ HOME VIEW SCREEN ═══════════════ */}
 {currentView === 'home' && (
-  <section id="home-view" className="view">
-    <div className="hero">
-      <h1 className="hero-title">
-        Sharpen your <span className="accent">order-of-magnitude</span> valuation metrics.
-      </h1>
-      <p className="hero-sub">
-        Calibration beats confidence. Tighten your trading ranges, manage variance, and claim your alpha.
-      </p>
-    </div>
+          <div id="home-view" className="view home-landing">
 
-            {/* Injects your newly generated smooth-scrolling marquee file seamlessly here */}
-            <MarqueeCards />
+            {/* ═══════════════ SECTION 1 · HERO ═══════════════ */}
+            <section className="landing-section landing-hero" aria-labelledby="hero-heading">
+              <div className="hero">
+                <span className="section-eyebrow">Order-of-magnitude trainer</span>
+                <h1 id="hero-heading" className="hero-title">
+                  Sharpen your <span className="accent">order-of-magnitude</span> valuation metrics.
+                </h1>
+                <p className="hero-sub">
+                  Calibration beats confidence. Tighten your trading ranges, manage variance, and claim your alpha.
+                </p>
+              </div>
 
-            <div className="mode-grid">
-              <button className="mode-card" id="mode-practice" onClick={() => setCurrentView('practice-config')}>
-                <span className="mode-kicker">Free play</span>
-                <span className="mode-name">Practice</span>
-                <span className="mode-desc">Pick difficulty, length, and pace. Drill until your calibration is sharp.</span>
-                <span className="mode-go">Configure →</span>
-              </button>
-              <button className="mode-card" id="mode-daily" onClick={() => setCurrentView('daily-landing')}>
-                <span className="mode-kicker">One run a day</span>
-                <span className="mode-name">Daily</span>
-                <span className="mode-desc">Same questions for everyone. See where you land in the distribution. Build a streak.</span>
-                <span className="mode-go">Play today →</span>
-              </button>
-            </div>
-          </section>
+              {/* Injects your newly generated smooth-scrolling marquee file seamlessly here */}
+              <MarqueeCards />
+            </section>
+
+            {/* ═══════════════ SECTION 2 · HOW TO PLAY / METHODOLOGY ═══════════════ */}
+            <section className="landing-section landing-methodology" aria-labelledby="method-heading">
+              <header className="section-head">
+                <span className="section-eyebrow">How to play</span>
+                <h2 id="method-heading" className="section-title">A disciplined approach to estimation</h2>
+                <p className="section-lede">
+                  Every round rewards calibrated thinking over lucky guesses. This is the methodology the
+                  scoring engine is built around.
+                </p>
+              </header>
+
+              <ol className="methodology-grid">
+                <li className="method-step">
+                  <span className="step-index" aria-hidden="true">01</span>
+                  <article>
+                    <h3 className="step-title">Quote a confidence interval</h3>
+                    <p className="step-body">
+                      Submit a low and a high bound you are roughly 90% sure contains the true value —
+                      a calibrated range, not a single point guess.
+                    </p>
+                  </article>
+                </li>
+                <li className="method-step">
+                  <span className="step-index" aria-hidden="true">02</span>
+                  <article>
+                    <h3 className="step-title">Avoid wide ranges that destroy alpha</h3>
+                    <p className="step-body">
+                      A 10,000× spread will almost always contain the answer, but it earns next to nothing.
+                      Tighter, defensible bounds are where the points — and the alpha — actually live.
+                    </p>
+                  </article>
+                </li>
+                <li className="method-step">
+                  <span className="step-index" aria-hidden="true">03</span>
+                  <article>
+                    <h3 className="step-title">Let the geometric mean score you</h3>
+                    <p className="step-body">
+                      Error is measured on a log scale around the geometric midpoint √(low × high),
+                      so being off by an order of magnitude is penalised fairly in either direction.
+                    </p>
+                  </article>
+                </li>
+              </ol>
+            </section>
+
+            {/* ═══════════════ SECTION 3 · MODE SELECTION GRID ═══════════════ */}
+            <section className="landing-section landing-modes" aria-labelledby="modes-heading">
+              <header className="section-head">
+                <span className="section-eyebrow">Choose your run</span>
+                <h2 id="modes-heading" className="section-title">Pick a mode and start calibrating</h2>
+              </header>
+
+              <div className="mode-grid">
+                <button className="mode-card" id="mode-practice" onClick={() => setCurrentView('practice-config')}>
+                  <span className="mode-kicker">Free play</span>
+                  <span className="mode-name">Practice</span>
+                  <span className="mode-desc">Pick difficulty, length, and pace. Drill until your calibration is sharp.</span>
+                  <span className="mode-go">Configure →</span>
+                </button>
+                <button className="mode-card" id="mode-daily" onClick={() => setCurrentView('daily-landing')}>
+                  <span className="mode-kicker">One run a day</span>
+                  <span className="mode-name">Daily</span>
+                  <span className="mode-desc">Same questions for everyone. See where you land in the distribution. Build a streak.</span>
+                  <span className="mode-go">Play today →</span>
+                </button>
+              </div>
+            </section>
+
+            {/* ═══════════════ SECTION 4 · FAQ ═══════════════ */}
+            <section className="landing-section landing-faq" aria-labelledby="faq-heading">
+              <header className="section-head">
+                <span className="section-eyebrow">FAQ</span>
+                <h2 id="faq-heading" className="section-title">Questions, answered</h2>
+              </header>
+
+              <div className="faq-list">
+                <details className="faq-item">
+                  <summary>
+                    What is a Fermi problem?
+                    <span className="faq-marker" aria-hidden="true"></span>
+                  </summary>
+                  <p>
+                    A Fermi problem asks you to estimate a quantity that seems impossible to know exactly —
+                    "how many piano tuners work in Chicago?" — by breaking it into factors you can reason about
+                    and multiplying them up. The goal is not the exact figure but landing in the right
+                    order of magnitude through structured assumptions.
+                  </p>
+                </details>
+
+                <details className="faq-item">
+                  <summary>
+                    How does the scoring engine evaluate variance?
+                    <span className="faq-marker" aria-hidden="true"></span>
+                  </summary>
+                  <p>
+                    A bound only scores when it actually contains the true value, and the reward scales inversely
+                    with how wide you cast it. A single order-of-magnitude window earns top marks; stretch past
+                    two or three orders and the payout collapses, because an over-conservative range carries no
+                    real conviction and surrenders your alpha.
+                  </p>
+                </details>
+
+                <details className="faq-item">
+                  <summary>
+                    Why use geometric midpoints instead of arithmetic means?
+                    <span className="faq-marker" aria-hidden="true"></span>
+                  </summary>
+                  <p>
+                    Estimation lives on a multiplicative scale. The arithmetic mean of 10 and 1,000 is 505 —
+                    hugging the larger number — while the geometric mean √(10 × 1,000) ≈ 100 sits at the true
+                    log-centre of the interval. Scoring on geometric error treats a 10× overestimate and a 10×
+                    underestimate as equally wrong, which is exactly how calibrated reasoning should behave.
+                  </p>
+                </details>
+              </div>
+            </section>
+
+          </div>
         )}
 
         {/* ═══════════════ PRACTICE CONFIG VIEW SCREEN ═══════════════ */}
